@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: ingestor/go.sum
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62
+          working-directory: ingestor
+
+  test-go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: ingestor/go.sum
+      - run: go test ./...
+        working-directory: ingestor
+
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          args: check api processor
+
+  test-python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, processor]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+        working-directory: ${{ matrix.service }}
+      - run: pytest -v
+        working-directory: ${{ matrix.service }}
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build
+
+  publish:
+    # Push images to ghcr.io on main, tagged by commit SHA
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint-go, test-go, lint-python, test-python, docker-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [ingestor, processor, api]
+    steps:
+      - uses: actions/checkout@v4
+      - id: repo
+        # ghcr requires a lowercase repository name
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service }}
+          push: true
+          tags: |
+            ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:latest
