@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
 
 jobs:
@@ -60,8 +60,8 @@ jobs:
       - run: docker compose build
 
   publish:
-    # Push images to ghcr.io on main, tagged by commit SHA
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Push images to ghcr.io on master, tagged by commit SHA
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: [lint-go, test-go, lint-python, test-python, docker-build]
     runs-on: ubuntu-latest
     permissions:
@@ -79,7 +79,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GH_ACCESS_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service }}
