@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: processor
+  template:
+    metadata:
+      labels:
+        app: processor
+    spec:
+      containers:
+        - name: processor
+          image: pulse-processor
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KAFKA_BROKERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC
+              value: raw_articles
+            - name: ES_URL
+              value: http://elasticsearch:9200
+          # Headless consumer (no HTTP surface): liveness checks the main
+          # process is still the running consumer.
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "grep -q processor /proc/1/cmdline"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

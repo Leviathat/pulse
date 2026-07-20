@@ -103,13 +103,13 @@ and the gap widens with data volume and histogram size.
 |---|---|
 | Ingest | Go, Gin, kafka-go |
 | Bus | Apache Kafka (KRaft) |
-| Processing | Python 3.12, aiokafka, Pydantic, Dishka |
+| Processing | Python 3.12, aiokafka, Pydantic (Settings) |
 | Storage / search | ElasticSearch |
 | Cache | Redis |
 | API | FastAPI |
-| UI | React, TypeScript, Redux Toolkit |
-| Infra | Docker, k3d + Helm, GitHub Actions → ghcr.io |
-| Tests | pytest + testcontainers, go test |
+| UI | React, TypeScript, Redux Toolkit (RTK Query), recharts |
+| Infra | Docker, Kubernetes (kustomize) + k3d, GitHub Actions → ghcr.io |
+| Tests | pytest, go test, ruff, golangci-lint |
 
 ## Repository layout
 
@@ -117,9 +117,27 @@ and the gap widens with data volume and histogram size.
 ingestor/    Go service: polls sources, normalizes, produces to Kafka
 processor/   Python service: consumes, matches monitors, indexes into ES
 api/         FastAPI service: monitors CRUD, feed, search, timeline
-ui/          React dashboard
-deploy/      k8s manifests / Helm charts
+ui/          React dashboard (Vite, nginx)
+deploy/k8s/  Kubernetes manifests (kustomize)
 ```
+
+## Kubernetes (k3d)
+
+The same services run on Kubernetes via [kustomize](deploy/k8s) manifests — each
+with liveness/readiness probes and resource requests/limits; ElasticSearch and
+Kafka are `StatefulSet`s with `PersistentVolumeClaim`s, and a `Job` creates the
+`raw_articles` topic. In-cluster, nginx proxies the dashboard's `/api` to the
+`api` Service, so no config changes between compose and k8s.
+
+```sh
+make k8s-up       # k3d cluster + build/import images + kubectl apply -k
+make k8s-status   # kubectl -n pulse get pods,svc
+make k8s-down
+make k8s-validate # render + client-validate manifests (no cluster needed)
+```
+
+`make k8s-up` maps the k3d load balancer to `:8081`; the dashboard is then at
+`http://pulse.localhost:8081` (add `127.0.0.1 pulse.localhost` to `/etc/hosts`).
 
 ## Roadmap
 
@@ -127,7 +145,7 @@ deploy/      k8s manifests / Helm charts
 - [x] **Stage 1** — vertical slice: HN → Kafka → processor → ES → `/search`
 - [x] **Stage 2** — monitors CRUD, match-on-write feed, timeline, Redis cache
 - [x] **Stage 3** — React+TS dashboard: monitors, feed, search, mentions chart
-- [ ] **Stage 4** — k8s (k3d + Helm), metrics in README, polish
+- [x] **Stage 4** — Kubernetes manifests (kustomize): probes, limits, StatefulSets, k3d Makefile
 
 ## Development
 

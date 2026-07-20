@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: pulse
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: pulse
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - elasticsearch.yaml
+  - kafka.yaml
+  - kafka-init-job.yaml
+  - redis.yaml
+  - ingestor.yaml
+  - processor.yaml
+  - api.yaml
+  - ui.yaml
+
+images:
+  - name: pulse-ingestor
+    newTag: latest
+  - name: pulse-processor
+    newTag: latest
+  - name: pulse-api
+    newTag: latest
+  - name: pulse-ui
+    newTag: latest

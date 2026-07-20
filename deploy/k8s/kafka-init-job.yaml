@@ -1,0 +1,36 @@
+# Creates the raw_articles topic (3 partitions, 24h retention) once Kafka is up.
+# Retries until the broker is reachable so ordering with the StatefulSet is safe.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-init
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app: kafka-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-topics
+          image: apache/kafka:3.9.0
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until /opt/kafka/bin/kafka-broker-api-versions.sh \
+                --bootstrap-server kafka:9092 >/dev/null 2>&1; do
+                echo "waiting for kafka..."; sleep 3
+              done
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+                --create --if-not-exists --topic raw_articles \
+                --partitions 3 --replication-factor 1 \
+                --config retention.ms=86400000
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+                --describe --topic raw_articles
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
