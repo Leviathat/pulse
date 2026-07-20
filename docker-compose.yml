@@ -88,8 +88,11 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       KAFKA_TOPIC: raw_articles
+      ES_URL: http://elasticsearch:9200
     depends_on:
       kafka:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
 
   api:

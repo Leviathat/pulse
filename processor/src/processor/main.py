@@ -1,37 +1,66 @@
-"""Stage-0 stub: consume raw_articles and log. Real processing arrives in stage 1."""
+"""Consume raw_articles, enrich, and index into ElasticSearch.
+
+Offsets are committed only after a successful index write (at-least-once), and
+writes are idempotent via a deterministic doc_id, so reprocessing is safe.
+"""
 
 import asyncio
 import logging
-import os
 import signal
 
 from aiokafka import AIOKafkaConsumer
+from elasticsearch import AsyncElasticsearch
+from pydantic import ValidationError
+
+from processor.config import Settings
+from processor.enrich import enrich
+from processor.es import ArticleRepository
+from processor.models import Article
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("processor")
 
-KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092")
-TOPIC = os.getenv("KAFKA_TOPIC", "raw_articles")
-GROUP_ID = os.getenv("KAFKA_GROUP_ID", "pulse-processor")
 
+async def run(settings: Settings | None = None) -> None:
+    settings = settings or Settings()
 
-async def run() -> None:
+    es = AsyncElasticsearch(settings.es_url)
+    repo = ArticleRepository(es)
+    await repo.ensure_index()
+
     consumer = AIOKafkaConsumer(
-        TOPIC,
-        bootstrap_servers=KAFKA_BROKERS,
-        group_id=GROUP_ID,
+        settings.kafka_topic,
+        bootstrap_servers=settings.kafka_brokers,
+        group_id=settings.kafka_group_id,
         enable_auto_commit=False,
         auto_offset_reset="earliest",
     )
     await consumer.start()
-    log.info("stub consumer started: topic=%s group=%s brokers=%s", TOPIC, GROUP_ID, KAFKA_BROKERS)
+    log.info(
+        "consumer started: topic=%s group=%s brokers=%s",
+        settings.kafka_topic,
+        settings.kafka_group_id,
+        settings.kafka_brokers,
+    )
     try:
         async for msg in consumer:
-            log.info("received: partition=%d offset=%d key=%r", msg.partition, msg.offset, msg.key)
+            await handle_message(repo, msg.value)
             await consumer.commit()
     finally:
         await consumer.stop()
+        await es.close()
         log.info("consumer stopped")
+
+
+async def handle_message(repo: ArticleRepository, raw: bytes) -> None:
+    """Parse, enrich and index one message. Poison messages are dropped, not retried."""
+    try:
+        article = Article.model_validate_json(raw)
+    except ValidationError as exc:
+        log.warning("dropping unparseable message: %s", exc)
+        return
+    await repo.index(enrich(article))
+    log.info("indexed %s (%s)", article.doc_id[:12], article.title[:60])
 
 
 def main() -> None:

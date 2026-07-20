@@ -5,6 +5,10 @@ description = "Pulse: Kafka consumer that matches, enriches and indexes articles
 requires-python = ">=3.12"
 dependencies = [
     "aiokafka>=0.11",
+    "elasticsearch[async]>=8.17,<9",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "langdetect>=1.0.9",
 ]
 
 [project.optional-dependencies]
