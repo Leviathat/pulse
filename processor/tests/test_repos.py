@@ -39,7 +39,13 @@ class RecordingRepo:
         return self.monitors
 
 
-def test_monitor_cache_refreshes_then_serves_from_memory() -> None:
+def test_monitor_cache_refreshes_then_serves_from_memory(monkeypatch) -> None:
+    # Pin monotonic() small (< ttl) so the first load must fire on the "never
+    # loaded" sentinel, not because uptime happens to exceed the TTL.
+    import processor.matching as matching_mod
+
+    monkeypatch.setattr(matching_mod.time, "monotonic", lambda: 5.0)
+
     repo = RecordingRepo([Monitor(id="m1", keywords=["python"])])
     cache = MonitorCache(repo, ttl=1000)  # type: ignore[arg-type]
 

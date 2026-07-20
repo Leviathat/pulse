@@ -70,11 +70,14 @@ class MonitorCache:
         self._repo = repo
         self._ttl = ttl
         self._matcher = Matcher([])
-        self._loaded_at = 0.0
+        # None until the first successful load. Don't seed with 0.0: monotonic()
+        # is small on a freshly-booted host, so `now - 0 >= ttl` could be false
+        # and the first refresh would never fire.
+        self._loaded_at: float | None = None
 
     async def matcher(self) -> Matcher:
         now = time.monotonic()
-        if now - self._loaded_at >= self._ttl:
+        if self._loaded_at is None or now - self._loaded_at >= self._ttl:
             try:
                 monitors = await self._repo.list_active()
                 self._matcher = Matcher(monitors)
