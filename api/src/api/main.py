@@ -20,7 +20,7 @@ from api.monitors import MonitorRepository
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # pragma: no cover - wires live clients
     settings = Settings()
     app.state.es = AsyncElasticsearch(settings.es_url)
     app.state.redis = Redis.from_url(settings.redis_url, decode_responses=True)

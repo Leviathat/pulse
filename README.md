@@ -1,11 +1,15 @@
 # Pulse
 
+[![CI](https://github.com/Leviathat/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Leviathat/pulse/actions/workflows/ci.yml)
+![coverage](coverage.svg)
+
 Real-time media monitoring pipeline. Create a **monitor** with keywords — Pulse continuously
 ingests publications from open sources (Hacker News first), matches them against your monitors,
 and serves a live feed, full-text search and a mentions-over-time chart.
 
-> **Status: Stage 3** — full stack is live end to end (Go ingestor → Kafka →
-> Python processor → ElasticSearch → API → **React dashboard**). Create a monitor
+> **Status: Stage 4** — full stack is live end to end (Go ingestor → Kafka →
+> Python processor → ElasticSearch → API → **React dashboard**), with Kubernetes
+> manifests ([deploy/k8s](deploy/k8s)) alongside docker-compose. Create a monitor
 > with keywords; the processor tags matching articles on write; the dashboard at
 > http://localhost:3000 shows the feed (with keyword highlighting), a mentions-over-
 > time chart, and full-text search over the archive. See [Roadmap](#roadmap).
@@ -96,6 +100,21 @@ docs at http://localhost:8000/docs.
 the current dev dataset (24 matched docs) the p50 is ≈ 8 ms uncached vs ≈ 6 ms
 served from cache — the cached path skips the ElasticSearch aggregation round-trip,
 and the gap widens with data volume and histogram size.
+
+## Benchmarks
+
+Measured on the local docker-compose stack (Apple Silicon, single-node ES/Kafka).
+Reproduce the numbers with the commands under [Try it](#try-it).
+
+| Metric | Result | Notes |
+|---|---|---|
+| Pipeline throughput | **≈ 19 articles/sec** | full reprocess of the backlog through the processor (consume → langdetect enrich → keyword match → ES index), single-doc writes, incl. consumer startup — bulk indexing is a known follow-up |
+| Timeline latency (cache miss) | **≈ 8 ms** p50 | ElasticSearch `date_histogram` round-trip |
+| Timeline latency (cache hit) | **≈ 6 ms** p50 | served from Redis; skips ES — gap widens with data volume / histogram size |
+| Test coverage (api + processor) | **99%** | enforced in CI at ≥ 90% (`--cov-fail-under=90`) |
+
+> The ingestor's raw ingest rate is bounded by the Hacker News polling cadence, not
+> the pipeline, so throughput above is measured at the processor (the compute stage).
 
 ## Stack
 

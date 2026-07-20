@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("processor")
 
 
-async def run(settings: Settings | None = None) -> None:
+async def run(settings: Settings | None = None) -> None:  # pragma: no cover - integration glue
     settings = settings or Settings()
 
     es = AsyncElasticsearch(settings.es_url)
@@ -75,7 +75,7 @@ async def handle_message(
     )
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover - process entrypoint
     loop = asyncio.new_event_loop()
     task = loop.create_task(run())
     for sig in (signal.SIGTERM, signal.SIGINT):

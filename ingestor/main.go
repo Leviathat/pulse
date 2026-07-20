@@ -42,7 +42,7 @@ func main() {
 	defer stop()
 
 	prod := producer.New(brokers, topic)
-	defer prod.Close()
+	defer func() { _ = prod.Close() }()
 
 	pl := poller.New(poller.Config{Interval: interval, MaxPerPoll: maxPerPoll}, hn.NewClient(), prod)
 	go pl.Run(ctx)

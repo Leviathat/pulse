@@ -50,7 +50,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
         working-directory: ${{ matrix.service }}
-      - run: pytest -v
+      - run: pytest -v --cov=${{ matrix.service }} --cov-report=term-missing --cov-fail-under=90
         working-directory: ${{ matrix.service }}
 
   docker-build:
