@@ -113,6 +113,13 @@ services:
       timeout: 3s
       retries: 6
 
+  ui:
+    build: ui
+    ports:
+      - "3000:80" # dashboard at http://localhost:3000 (nginx proxies /api -> api:8000)
+    depends_on:
+      - api
+
   # Dev-only, start with: docker compose --profile debug up -d
   kibana:
     image: docker.elastic.co/kibana/kibana:8.17.0

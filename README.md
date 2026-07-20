@@ -4,11 +4,11 @@ Real-time media monitoring pipeline. Create a **monitor** with keywords — Puls
 ingests publications from open sources (Hacker News first), matches them against your monitors,
 and serves a live feed, full-text search and a mentions-over-time chart.
 
-> **Status: Stage 2** — the pipeline is live (Go ingestor → Kafka → Python
-> processor → ElasticSearch → API) and now supports **monitors**: create a monitor
-> with keywords, the processor tags matching articles on write, and the API serves
-> a per-monitor `/feed`, a `/timeline` histogram (Redis cache-aside), and full-text
-> `/search`. See [Roadmap](#roadmap).
+> **Status: Stage 3** — full stack is live end to end (Go ingestor → Kafka →
+> Python processor → ElasticSearch → API → **React dashboard**). Create a monitor
+> with keywords; the processor tags matching articles on write; the dashboard at
+> http://localhost:3000 shows the feed (with keyword highlighting), a mentions-over-
+> time chart, and full-text search over the archive. See [Roadmap](#roadmap).
 
 ## Architecture
 
@@ -49,6 +49,7 @@ docker compose up -d --build
 
 | Service | URL |
 |---|---|
+| **Dashboard (UI)** | http://localhost:3000 |
 | API (OpenAPI docs) | http://localhost:8000/docs |
 | Ingestor health | http://localhost:8080/healthz |
 | ElasticSearch | http://localhost:9200 |
@@ -125,7 +126,7 @@ deploy/      k8s manifests / Helm charts
 - [x] **Stage 0** — monorepo, docker-compose (Kafka+ES+Redis), stub services, CI
 - [x] **Stage 1** — vertical slice: HN → Kafka → processor → ES → `/search`
 - [x] **Stage 2** — monitors CRUD, match-on-write feed, timeline, Redis cache
-- [ ] **Stage 3** — UI: monitors, feed, search, mentions chart
+- [x] **Stage 3** — React+TS dashboard: monitors, feed, search, mentions chart
 - [ ] **Stage 4** — k8s (k3d + Helm), metrics in README, polish
 
 ## Development
