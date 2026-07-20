@@ -7,7 +7,8 @@ from processor.config import Settings
 from processor.enrich import detect_lang, enrich
 from processor.es import ArticleRepository
 from processor.main import handle_message
-from processor.models import Article, EnrichedArticle
+from processor.matching import Matcher
+from processor.models import Article, EnrichedArticle, Monitor
 
 SAMPLE = {
     "source": "hackernews",
@@ -48,6 +49,20 @@ def test_enrich_adds_lang_and_empty_matches() -> None:
     assert enriched.doc_id  # carried through
 
 
+def test_matcher_word_boundary_and_case_insensitive() -> None:
+    matcher = Matcher(
+        [
+            Monitor(id="m1", name="py", keywords=["python", "fastapi"]),
+            Monitor(id="m2", name="js", keywords=["java"]),
+        ]
+    )
+    # "java" must not match inside "javascript" (word boundary).
+    assert matcher.match("FastAPI is a Python framework") == ["m1"]
+    assert matcher.match("I love JavaScript") == []
+    assert matcher.match("Modern Java and Python") == ["m1", "m2"]
+    assert matcher.match("nothing relevant here") == []
+
+
 class FakeRepo:
     def __init__(self) -> None:
         self.indexed: list[EnrichedArticle] = []
@@ -56,16 +71,36 @@ class FakeRepo:
         self.indexed.append(article)
 
 
-def test_handle_message_indexes_valid_event() -> None:
+class StubCache:
+    """Returns a fixed Matcher, standing in for the ES-backed MonitorCache."""
+
+    def __init__(self, matcher: Matcher) -> None:
+        self._matcher = matcher
+
+    async def matcher(self) -> Matcher:
+        return self._matcher
+
+
+def test_handle_message_indexes_and_tags_matches() -> None:
     repo = FakeRepo()
-    asyncio.run(handle_message(repo, json.dumps(SAMPLE).encode()))
+    cache = StubCache(Matcher([Monitor(id="m1", keywords=["fastapi"])]))
+    asyncio.run(handle_message(repo, cache, json.dumps(SAMPLE).encode()))
     assert len(repo.indexed) == 1
     assert repo.indexed[0].source_id == "38912345"
+    assert repo.indexed[0].matched_monitor_ids == ["m1"]
+
+
+def test_handle_message_no_match_leaves_empty_ids() -> None:
+    repo = FakeRepo()
+    cache = StubCache(Matcher([Monitor(id="m1", keywords=["kubernetes"])]))
+    asyncio.run(handle_message(repo, cache, json.dumps(SAMPLE).encode()))
+    assert repo.indexed[0].matched_monitor_ids == []
 
 
 def test_handle_message_drops_poison() -> None:
     repo = FakeRepo()
-    asyncio.run(handle_message(repo, b"{not valid json"))
+    cache = StubCache(Matcher([]))
+    asyncio.run(handle_message(repo, cache, b"{not valid json"))
     assert repo.indexed == []
 
 

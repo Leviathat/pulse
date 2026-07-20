@@ -29,3 +29,11 @@ class EnrichedArticle(Article):
 
     lang: str = "unknown"
     matched_monitor_ids: list[str] = Field(default_factory=list)
+
+
+class Monitor(BaseModel):
+    """A saved keyword monitor, as read from the `monitors` index (owned by the API)."""
+
+    id: str
+    name: str = ""
+    keywords: list[str] = Field(default_factory=list)

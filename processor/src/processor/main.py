@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from processor.config import Settings
 from processor.enrich import enrich
 from processor.es import ArticleRepository
+from processor.matching import MonitorCache, MonitorRepository
 from processor.models import Article
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -26,6 +27,7 @@ async def run(settings: Settings | None = None) -> None:
 
     es = AsyncElasticsearch(settings.es_url)
     repo = ArticleRepository(es)
+    monitors = MonitorCache(MonitorRepository(es))
     await repo.ensure_index()
 
     consumer = AIOKafkaConsumer(
@@ -44,7 +46,7 @@ async def run(settings: Settings | None = None) -> None:
     )
     try:
         async for msg in consumer:
-            await handle_message(repo, msg.value)
+            await handle_message(repo, monitors, msg.value)
             await consumer.commit()
     finally:
         await consumer.stop()
@@ -52,15 +54,25 @@ async def run(settings: Settings | None = None) -> None:
         log.info("consumer stopped")
 
 
-async def handle_message(repo: ArticleRepository, raw: bytes) -> None:
-    """Parse, enrich and index one message. Poison messages are dropped, not retried."""
+async def handle_message(
+    repo: ArticleRepository, monitors: MonitorCache, raw: bytes
+) -> None:
+    """Parse, enrich, match and index one message. Poison messages are dropped."""
     try:
         article = Article.model_validate_json(raw)
     except ValidationError as exc:
         log.warning("dropping unparseable message: %s", exc)
         return
-    await repo.index(enrich(article))
-    log.info("indexed %s (%s)", article.doc_id[:12], article.title[:60])
+    enriched = enrich(article)
+    matcher = await monitors.matcher()
+    enriched.matched_monitor_ids = matcher.match(f"{article.title}\n{article.body}")
+    await repo.index(enriched)
+    log.info(
+        "indexed %s (%s) matches=%s",
+        article.doc_id[:12],
+        article.title[:60],
+        enriched.matched_monitor_ids,
+    )
 
 
 def main() -> None:

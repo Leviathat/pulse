@@ -8,3 +8,4 @@ class Settings(BaseSettings):
 
     es_url: str = "http://elasticsearch:9200"
     redis_url: str = "redis://redis:6379/0"
+    cache_ttl_seconds: int = 30
